@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>漁很大 - 即時開房點餐趴</title>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <title>漁很大 - 多人即時同步點餐</title>
+  <!-- 引入免費即時同步廣播庫 -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
       --primary: #3b82f6;
@@ -22,26 +23,26 @@
       color: var(--text);
       padding: 16px;
     }
-    .header { text-align: center; margin-bottom: 20px; }
-    .header h1 { font-size: 26px; color: #60a5fa; }
+    .header { text-align: center; margin-bottom: 16px; }
+    .header h1 { font-size: 24px; color: #60a5fa; }
     
-    /* 房間資訊卡 */
     .room-bar {
       max-width: 1200px;
       margin: 0 auto 16px;
       background: var(--card);
       border-radius: 12px;
-      padding: 14px 20px;
+      padding: 12px 18px;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       border: 1px solid #334155;
+      gap: 10px;
     }
     .badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; background: #065f46; color: #6ee7b7; }
-    .btn-room { background: var(--primary); border: none; color: white; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .badge.offline { background: #7f1d1d; color: #fca5a5; }
+    .btn-room { background: var(--primary); border: none; color: white; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
 
-    /* 雙欄排版 */
     .layout {
       max-width: 1200px;
       margin: 0 auto;
@@ -53,7 +54,6 @@
 
     .panel { background: var(--card); border-radius: 12px; padding: 18px; border: 1px solid #334155; }
     
-    /* 隨機拉霸按鈕 */
     .slot-box {
       background: linear-gradient(135deg, #1e1b4b, #312e81);
       border: 2px dashed #818cf8;
@@ -66,7 +66,6 @@
     }
     .btn-slot { background: var(--accent); color: #000; font-weight: 800; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 
-    /* 菜單列 */
     .filter-box { display: flex; gap: 10px; margin-bottom: 14px; }
     select { flex: 1; padding: 10px; border-radius: 8px; background: #0f172a; color: #fff; border: 1px solid #475569; font-size: 15px; }
     
@@ -81,11 +80,8 @@
     .btn-add {
       background: var(--primary); border: none; color: white;
       padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;
-      transition: transform 0.1s;
     }
-    .btn-add:active { transform: scale(0.95); }
 
-    /* 購物車 */
     .cart-box { position: sticky; top: 16px; }
     .cart-item {
       display: flex; justify-content: space-between; align-items: center;
@@ -94,14 +90,12 @@
     .who-tag { font-size: 11px; background: #334155; color: #93c5fd; padding: 2px 6px; border-radius: 4px; margin-right: 4px; }
     .total-price { font-size: 28px; font-weight: 900; color: #f87171; }
     
-    /* 叮咚彈跳通知 */
     #toast {
       position: fixed; top: 20px; right: 20px;
       background: #f59e0b; color: #000; font-weight: bold;
       padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-      display: none; z-index: 999; animation: bounce 0.3s;
+      display: none; z-index: 999;
     }
-    @keyframes bounce { 0% { transform: translateY(-20px); } 100% { transform: translateY(0); } }
   </style>
 </head>
 <body>
@@ -109,28 +103,27 @@
   <div id="toast">🔔 通知訊息</div>
 
   <div class="header">
-    <h1>🍻 漁很大 多人連線點餐趴</h1>
-    <p style="color:var(--text-sub); font-size:13px;">免帳號・開房即時同步・誰搶菜一清二楚</p>
+    <h1>🍻 漁很大 多人同步點餐</h1>
+    <p style="color:var(--text-sub); font-size:13px;">雲端廣播通道・隨點隨更新</p>
   </div>
 
   <div class="room-bar">
     <div>
-      連線狀態：<span class="badge" id="netStatus">連線中...</span>
-      <span style="margin-left: 12px; font-size:14px; color:#93c5fd;">我是：<strong id="myNick">訪客</strong></span>
+      狀態：<span class="badge" id="netStatus">連線中...</span>
+      <span style="margin-left: 10px; font-size:14px; color:#93c5fd;">我是：<strong id="myNick">...</strong></span>
     </div>
     <button class="btn-room" onclick="shareRoom()">📋 複製邀請連結發群組</button>
   </div>
 
   <div class="layout">
-    <!-- 菜單 -->
+    <!-- 左邊菜單 -->
     <div class="panel">
-      <!-- 選擇障礙拉霸 -->
       <div class="slot-box">
         <div>
           <div style="font-weight:bold; font-size:14px;">🎲 選擇障礙救星</div>
           <div id="slotResult" style="font-size:12px; color:#cbd5e1;">點擊拉霸，隨機抽一道！</div>
         </div>
-        <button class="btn-slot" onclick="rollSlot()">🎰 幫我抽一道！</button>
+        <button class="btn-slot" onclick="rollSlot()">🎰 抽一道！</button>
       </div>
 
       <div class="filter-box">
@@ -142,9 +135,9 @@
       <div id="menuList"></div>
     </div>
 
-    <!-- 購物車 -->
+    <!-- 右邊購物車 -->
     <div class="panel cart-box">
-      <h2 style="font-size:18px; margin-bottom:12px;">即時合菜清單</h2>
+      <h2 style="font-size:18px; margin-bottom:12px;">即時全桌清單</h2>
       <div id="cartItems" style="max-height:360px; overflow-y:auto; margin-bottom:12px;">
         <div style="text-align:center; color:#64748b; padding:30px 0;">目前還沒有人點菜喔！</div>
       </div>
@@ -154,7 +147,7 @@
         <span class="total-price">NT$ <span id="totalPrice">0</span></span>
       </div>
 
-      <button style="width:100%; background:#10b981; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:12px;" onclick="copyOrder()">📋 複製最終點菜清單 (貼 LINE)</button>
+      <button style="width:100%; background:#10b981; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:12px;" onclick="copyOrder()">📋 複製最終清單 (貼 LINE)</button>
       <button style="width:100%; background:transparent; border:1px solid #475569; color:#94a3b8; padding:8px; border-radius:8px; font-size:12px; cursor:pointer; margin-top:8px;" onclick="clearAll()">清空重選</button>
     </div>
   </div>
@@ -175,74 +168,73 @@
       "火鍋・湯品": [["蛤仔湯",200],["味噌魚湯",220],["酸菜蚵仔湯",220],["田雞蛤仔湯",380],["黃金鍋 (小)",380],["黃金鍋 (大)",680],["蒜頭蛤仔雞湯",680],["剝皮辣椒雞湯",680],["中卷米粉湯",680],["砂鍋魚頭鍋",780]]
     };
 
-    let nickname = prompt("請輸入您的點餐暱稱：", "吃貨" + Math.floor(Math.random()*90+10)) || "神秘客";
+    let nickname = prompt("請輸入您的點餐暱稱：", "吃貨" + Math.floor(Math.random()*90+10)) || "訪客";
     document.getElementById("myNick").innerText = nickname;
 
-    let cart = {}; // { name: { price, qty, users: [] } }
-    let peer = null;
-    let conns = []; // 房長存的連線列表
-    let hostConn = null; // 團員連到房長的線
+    // 取得或自動建立房間代碼
     const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('room');
-
-    // 初始化 PeerJS
-    if (!roomId) {
-      // 👑 房長開房
-      peer = new Peer();
-      peer.on('open', id => {
-        document.getElementById("netStatus").innerText = "👑 房長 (已開房)";
-        window.history.replaceState({}, '', `?room=${id}`);
-      });
-      peer.on('connection', conn => {
-        conns.push(conn);
-        conn.on('data', data => handleIncomingData(data, conn));
-      });
-    } else {
-      // 🙋 團員進房
-      peer = new Peer();
-      peer.on('open', () => {
-        document.getElementById("netStatus").innerText = "🙋 已加入房間";
-        hostConn = peer.connect(roomId);
-        hostConn.on('open', () => {
-          hostConn.send({ type: 'JOIN', user: nickname });
-        });
-        hostConn.on('data', data => handleIncomingData(data));
-      });
+    let room = urlParams.get('room');
+    if (!room) {
+      room = 'room_' + Math.floor(Math.random() * 900000 + 100000);
+      window.history.replaceState({}, '', `?room=${room}`);
     }
 
-    function handleIncomingData(data, fromConn) {
-      if (data.type === 'SYNC') {
-        cart = data.cart;
-        renderCartUI();
-        if (data.msg) showToast(data.msg);
-      } else if (data.type === 'ACTION') {
-        // 房長接收團員點餐，更新後廣播給所有人
-        updateCart(data.item, data.price, data.user);
-        broadcastCart(`🔔 ${data.user} 點了 ${data.item}！`);
-      } else if (data.type === 'CLEAR') {
-        cart = {};
-        renderCartUI();
-        if (conns.length > 0) broadcastCart(`🗑️ ${data.user} 清空了菜單！`);
-      }
-    }
+    let cart = {};
 
-    function broadcastCart(msg) {
-      renderCartUI();
-      if (msg) showToast(msg);
-      conns.forEach(c => c.send({ type: 'SYNC', cart: cart, msg: msg }));
-    }
+    // 連線到全球公開 WebSocket 廣播通道（免註冊、免帳號）
+    const topic = `yuhenda_order_${room}`;
+    const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+
+    client.on('connect', () => {
+      const st = document.getElementById("netStatus");
+      st.innerText = "🟢 同步已連線";
+      st.className = "badge";
+      client.subscribe(topic);
+      // 一進來廣播詢問現有菜單狀態
+      client.publish(topic, JSON.stringify({ type: 'REQ_SYNC' }));
+    });
+
+    client.on('offline', () => {
+      const st = document.getElementById("netStatus");
+      st.innerText = "🔴 斷線重連中";
+      st.className = "badge offline";
+    });
+
+    // 收到廣播訊息
+    client.on('message', (t, message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data.type === 'SYNC') {
+          cart = data.cart;
+          renderCartUI();
+          if (data.msg) showToast(data.msg);
+        } else if (data.type === 'ADD') {
+          updateCart(data.item, data.price, data.user);
+          renderCartUI();
+          showToast(`🔔 ${data.user} 點了 ${data.item}！`);
+        } else if (data.type === 'CLEAR') {
+          cart = {};
+          renderCartUI();
+          showToast(`🗑️ ${data.user} 清空了菜單！`);
+        } else if (data.type === 'REQ_SYNC') {
+          // 有新人進房，且我手上已有菜單資料時，自動分享給新人
+          if (Object.keys(cart).length > 0) {
+            client.publish(topic, JSON.stringify({ type: 'SYNC', cart: cart }));
+          }
+        }
+      } catch(e) {}
+    });
 
     function addDish(name, price) {
-      if (!roomId) {
-        // 房長自己點
-        updateCart(name, price, nickname);
-        broadcastCart(`🔔 ${nickname} 點了 ${name}！`);
-      } else {
-        // 團員發給房長
-        if (hostConn && hostConn.open) {
-          hostConn.send({ type: 'ACTION', item: name, price: price, user: nickname });
-        }
-      }
+      updateCart(name, price, nickname);
+      renderCartUI();
+      // 廣播給所有人
+      client.publish(topic, JSON.stringify({
+        type: 'ADD',
+        item: name,
+        price: price,
+        user: nickname
+      }));
     }
 
     function updateCart(name, price, user) {
@@ -255,12 +247,9 @@
     }
 
     function clearAll() {
-      if (!roomId) {
-        cart = {};
-        broadcastCart(`🗑️ ${nickname} 清空了購物車！`);
-      } else {
-        if (hostConn && hostConn.open) hostConn.send({ type: 'CLEAR', user: nickname });
-      }
+      cart = {};
+      renderCartUI();
+      client.publish(topic, JSON.stringify({ type: 'CLEAR', user: nickname }));
     }
 
     function renderCartUI() {
@@ -304,11 +293,10 @@
 
     function shareRoom() {
       navigator.clipboard.writeText(window.location.href).then(() => {
-        alert("已複製房間連結！貼到 LINE 群組，朋友點開就能一起即時點餐囉！");
+        alert("已複製房間連結！貼到 LINE 群組，大家手機點進來就會即時連線！");
       });
     }
 
-    // 抽籤盲盒拉霸
     function rollSlot() {
       const allDishes = [];
       for (let c in menu) menu[c].forEach(d => allDishes.push(d));
@@ -318,7 +306,7 @@
         const pick = allDishes[Math.floor(Math.random() * allDishes.length)];
         res.innerText = `轉動中... 👉 ${pick[0]} ($${pick[1]})`;
         count++;
-        if (count > 15) {
+        if (count > 12) {
           clearInterval(timer);
           res.innerHTML = `🎉 恭喜抽中：<strong style="color:#f59e0b;">${pick[0]} ($${pick[1]})</strong>！`;
           addDish(pick[0], pick[1]);
@@ -359,7 +347,7 @@
     function copyOrder() {
       const keys = Object.keys(cart);
       if (keys.length === 0) return alert("購物車是空的！");
-      let t = "【漁很大 多人連線點餐清單】\n";
+      let t = "【漁很大 多人同步點餐清單】\n";
       let tot = 0;
       keys.forEach(k => {
         const item = cart[k];
