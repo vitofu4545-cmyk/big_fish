@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>漁很大 - 點餐模式選擇</title>
+  <title>漁很大 - 即時點餐系統</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
@@ -20,32 +20,32 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg);
       color: var(--text);
-      padding: 16px;
+      padding: 14px;
     }
-    .header { text-align: center; margin-bottom: 14px; }
-    .header h1 { font-size: 24px; color: #60a5fa; }
+    .header { text-align: center; margin-bottom: 12px; }
+    .header h1 { font-size: 22px; color: #60a5fa; }
     
-    /* 進入模式選擇遮罩 */
-    #modeModal {
+    /* 入場選擇彈窗 */
+    #entryModal {
       position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
       display: flex; justify-content: center; align-items: center; z-index: 1000;
     }
     .modal-box {
       background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-      padding: 26px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      padding: 24px; width: 360px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
     }
     .modal-input {
-      width: 100%; padding: 10px; margin: 8px 0 16px; border-radius: 8px;
+      width: 100%; padding: 10px; margin: 8px 0 14px; border-radius: 8px;
       border: 1px solid var(--border); background: #0f172a; color: #fff; font-size: 15px; text-align: center;
     }
-    .mode-btn-group { display: flex; flex-direction: column; gap: 12px; }
-    .btn-mode {
-      padding: 14px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; border: none;
+    .btn-group { display: flex; flex-direction: column; gap: 10px; }
+    .btn-entry {
+      padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; border: none;
       display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s;
     }
-    .btn-mode:active { transform: scale(0.98); }
-    .btn-new { background: #2563eb; color: white; }
+    .btn-entry:active { transform: scale(0.98); }
     .btn-join { background: #059669; color: white; }
+    .btn-new { background: #2563eb; color: white; }
 
     /* 頂部操作列 */
     .room-bar {
@@ -53,7 +53,7 @@
       margin: 0 auto 14px;
       background: var(--card);
       border-radius: 10px;
-      padding: 10px 16px;
+      padding: 10px 14px;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
@@ -64,7 +64,7 @@
     }
     .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #065f46; color: #6ee7b7; }
     .btn-action { background: var(--primary); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
-    .btn-switch { background: #334155; border: 1px solid #475569; color: #93c5fd; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 6px; }
+    .btn-switch { background: #334155; border: 1px solid #475569; color: #93c5fd; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 6px; }
 
     /* 雙欄 */
     .layout {
@@ -78,6 +78,7 @@
 
     .panel { background: var(--card); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
     
+    /* 盲盒拉霸 */
     .slot-box {
       background: #1e1b4b; border: 1.5px dashed #818cf8; border-radius: 8px;
       padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
@@ -99,8 +100,8 @@
       padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
     }
 
-    /* 右側個人清單 */
-    .cart-box { position: sticky; top: 16px; }
+    /* 右側清單 */
+    .cart-box { position: sticky; top: 14px; }
     .user-group {
       background: #0f172a;
       border-radius: 8px;
@@ -163,25 +164,30 @@
 </head>
 <body>
 
-  <!-- 進來直接選：開新菜單 OR 加入現有菜單 -->
-  <div id="modeModal">
+  <!-- 入場設定視窗 -->
+  <div id="entryModal">
     <div class="modal-box">
-      <h2 style="font-size:20px; color:#60a5fa; margin-bottom:6px;">🍻 漁很大 點餐連線</h2>
-      <p style="font-size:13px; color:#94a3b8; margin-bottom:14px;">請輸入您的點餐姓名並選擇模式：</p>
+      <h2 style="font-size:18px; color:#60a5fa; margin-bottom:4px;">🍻 漁很大 點餐系統</h2>
+      <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">先設定點餐身份，再選擇清單模式</p>
       
-      <input type="text" id="inputName" class="modal-input" placeholder="請輸入姓名 (例如：小明)" maxlength="10">
+      <div style="text-align:left; font-size:12px; color:#cbd5e1; margin-bottom:2px;">1. 您的姓名 / 暱稱：</div>
+      <input type="text" id="inputName" class="modal-input" placeholder="例如：小明、阿達" maxlength="10">
 
-      <div class="mode-btn-group">
-        <button class="btn-mode btn-new" onclick="selectMode('NEW')">
-          ➕ 開新菜單（新開一桌）
+      <div style="text-align:left; font-size:12px; color:#cbd5e1; margin-bottom:2px;">2. 選擇點餐方式：</div>
+      <div class="btn-group">
+        <button class="btn-entry btn-join" onclick="handleChoice('JOIN')">
+          👥 加入共用清單（一起點這桌）
         </button>
-
-        <div style="font-size:12px; color:#64748b; margin:2px 0;">— 或者加入朋友已開的單 —</div>
-
-        <input type="text" id="inputRoom" class="modal-input" style="margin:0 0 8px;" placeholder="輸入桌號 / 房號 (預設: 01桌)" value="01桌">
-        <button class="btn-mode btn-join" onclick="selectMode('JOIN')">
-          🔗 加入現有菜單（共用點餐）
+        <button class="btn-entry btn-new" onclick="handleChoice('NEW')">
+          🆕 重開全新清單（另開一桌）
         </button>
+      </div>
+
+      <div style="margin-top:12px; text-align:left;">
+        <details style="font-size:11px; color:#64748b;">
+          <summary style="cursor:pointer;">自訂特定房號 / 桌號（選填）</summary>
+          <input type="text" id="customRoomInput" class="modal-input" style="margin-top:6px; padding:6px;" placeholder="預設為 shared_table">
+        </details>
       </div>
     </div>
   </div>
@@ -189,17 +195,17 @@
   <div id="toast">🔔 通知</div>
 
   <div class="header">
-    <h1>🍻 漁很大 多人連線點餐系統</h1>
+    <h1>🍻 漁很大 多人連線點餐</h1>
   </div>
 
   <div class="room-bar">
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
       <span class="badge" id="netStatus">連線中</span>
-      <span>桌號：<strong id="roomDisplay" style="color:#f59e0b; font-size:15px;">...</strong></span>
-      <span>｜ 點餐人：<strong id="userDisplay" style="color:#60a5fa; font-size:15px;">...</strong></span>
-      <button class="btn-switch" onclick="switchTable()">切換桌號/姓名</button>
+      <span>清單：<strong id="roomDisplay" style="color:#f59e0b;">...</strong></span>
+      <span>｜ 點餐人：<strong id="userDisplay" style="color:#60a5fa;">...</strong></span>
+      <button class="btn-switch" onclick="reopenModal()">切換身份/清單</button>
     </div>
-    <button class="btn-action" onclick="copyTableLink()">📋 複製這桌的邀請連結</button>
+    <button class="btn-action" onclick="copyShareLink()">📋 複製這桌連結</button>
   </div>
 
   <div class="layout">
@@ -256,53 +262,52 @@
       "火鍋・湯品": [["蛤仔湯",200],["味噌魚湯",220],["酸菜蚵仔湯",220],["田雞蛤仔湯",380],["黃金鍋 (小)",380],["黃金鍋 (大)",680],["蒜頭蛤仔雞湯",680],["剝皮辣椒雞湯",680],["中卷米粉湯",680],["砂鍋魚頭鍋",780]]
     };
 
+    let currentUser = localStorage.getItem('order_user_name') || "";
     let currentRoom = "";
-    let currentUser = "";
     let client = null;
     let orders = {};
 
-    // 檢查網址是否已帶房號
+    // 檢查網址有無指定桌號
     const urlParams = new URLSearchParams(window.location.search);
     const paramRoom = urlParams.get('room');
-    if (paramRoom) {
-      document.getElementById('inputRoom').value = paramRoom;
+
+    if (currentUser) {
+      document.getElementById('inputName').value = currentUser;
     }
 
-    // 帶入之前記住的名字
-    const cachedName = localStorage.getItem('order_saved_name');
-    if (cachedName) document.getElementById('inputName').value = cachedName;
-
-    function selectMode(mode) {
+    function handleChoice(mode) {
       const name = document.getElementById('inputName').value.trim();
-      if (!name) return alert("請輸入您的姓名！");
+      if (!name) return alert("請先輸入您的姓名！");
       currentUser = name;
-      localStorage.setItem('order_saved_name', currentUser);
+      localStorage.setItem('order_user_name', currentUser);
 
-      if (mode === 'NEW') {
-        // 開新菜單：自動隨機新桌號
-        currentRoom = "桌號-" + Math.floor(Math.random() * 899 + 100);
+      const custom = document.getElementById('customRoomInput').value.trim();
+
+      if (mode === 'JOIN') {
+        // 加入共用清單：優先使用網址指定的房號，沒有就用自訂或預設桌
+        currentRoom = paramRoom || custom || "桌號_01";
       } else {
-        // 加入現有菜單
-        currentRoom = document.getElementById('inputRoom').value.trim() || "01桌";
+        // 重開全新清單：隨機產生新房間
+        currentRoom = "新桌_" + Math.floor(Math.random() * 899 + 100);
       }
 
-      // 網址綁定 room，讓複製連結時大家能直接進同桌
+      // 更新乾淨的網址參數
       window.history.replaceState({}, '', `?room=${encodeURIComponent(currentRoom)}`);
 
-      document.getElementById('roomDisplay').innerText = currentRoom;
       document.getElementById('userDisplay').innerText = currentUser;
-      document.getElementById('modeModal').style.display = 'none';
+      document.getElementById('roomDisplay').innerText = currentRoom;
+      document.getElementById('entryModal').style.display = 'none';
 
       initConnection();
     }
 
-    function switchTable() {
+    function reopenModal() {
       if (client) client.end();
-      document.getElementById('modeModal').style.display = 'flex';
+      document.getElementById('entryModal').style.display = 'flex';
     }
 
     function initConnection() {
-      const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+      const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
       client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
       client.on('connect', () => {
@@ -327,7 +332,7 @@
           } else if (data.type === 'CLEAR') {
             orders = {};
             renderCartUI();
-            showToast(`🗑️ ${data.user} 清空了這桌的訂單`);
+            showToast(`🗑️ ${data.user} 清空了這桌清單`);
           } else if (data.type === 'REQ_SYNC') {
             if (Object.keys(orders).length > 0) {
               client.publish(topic, JSON.stringify({ type: 'SYNC', orders: orders }));
@@ -340,7 +345,7 @@
     function addDish(item, price) {
       doAdd(currentUser, item, price);
       renderCartUI();
-      const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+      const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
       client.publish(topic, JSON.stringify({ type: 'ADD', user: currentUser, item, price }));
     }
 
@@ -351,7 +356,7 @@
       }
       doMinus(user, item);
       renderCartUI();
-      const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+      const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
       client.publish(topic, JSON.stringify({ type: 'MINUS', user: currentUser, item }));
     }
 
@@ -419,7 +424,7 @@
       totalEl.innerText = grandTotal.toLocaleString();
     }
 
-    // 長按 3 秒防手滑清空
+    // 長按 3 秒清空防呆
     let holdTimer = null;
     const clearBtn = document.getElementById("clearHoldBtn");
     clearBtn.addEventListener('mousedown', startHold);
@@ -439,7 +444,7 @@
           clearInterval(holdTimer);
           orders = {};
           renderCartUI();
-          const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+          const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
           client.publish(topic, JSON.stringify({ type: 'CLEAR', user: currentUser }));
           resetClearBtn();
         }
@@ -464,10 +469,10 @@
       setTimeout(() => { t.style.display = "none"; }, 2000);
     }
 
-    function copyTableLink() {
+    function copyShareLink() {
       const cleanUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(currentRoom)}`;
       navigator.clipboard.writeText(cleanUrl).then(() => {
-        alert(`已複製【${currentRoom}】的專屬連結！\n傳到群組，朋友點開直接就是這桌，輸入名字就能一起點！`);
+        alert(`已複製【${currentRoom}】連結！\n傳給同事或朋友，他們點開直接選姓名就能加入這桌。`);
       });
     }
 
@@ -538,7 +543,7 @@
       });
 
       t += `-------------------------\n全桌總計：NT$ ${grandTotal} 元`;
-      navigator.clipboard.writeText(t).then(() => alert("已複製完整分帳清單！"));
+      navigator.clipboard.writeText(t).then(() => alert("已複製分帳清單！"));
     }
 
     renderMenu();
