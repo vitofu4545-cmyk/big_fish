@@ -28,7 +28,7 @@
     /* 入場彈窗 */
     #entryModal {
       position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
-      display: flex; justify-content: center; align-items: center; z-index: 1000;
+      display: none; justify-content: center; align-items: center; z-index: 1000;
     }
     .modal-box {
       background: var(--card); border: 1px solid var(--border); border-radius: 14px;
@@ -105,7 +105,6 @@
       padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
     }
 
-    /* 搜尋與篩選列 */
     .filter-bar {
       display: grid;
       grid-template-columns: 1fr 140px;
@@ -124,9 +123,7 @@
       font-size: 14px;
       outline: none;
     }
-    .search-input:focus {
-      border-color: var(--primary);
-    }
+    .search-input:focus { border-color: var(--primary); }
     select {
       padding: 9px 8px;
       border-radius: 6px;
@@ -149,7 +146,7 @@
       padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
     }
 
-    /* 右側購物清單 */
+    /* 右側清單 */
     .cart-box { position: sticky; top: 14px; }
     .user-group {
       background: #0f172a;
@@ -239,7 +236,7 @@
   <div id="entryModal">
     <div class="modal-box">
       <h2 style="font-size:18px; color:#60a5fa; margin-bottom:4px;">🍻 漁很大 點餐系統</h2>
-      <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">先設定點餐姓名，再選擇清單模式</p>
+      <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">設定點餐姓名與模式</p>
       
       <div style="text-align:left; font-size:12px; color:#cbd5e1; margin-bottom:2px;">1. 您的姓名 / 暱稱：</div>
       <input type="text" id="inputName" class="modal-input" placeholder="例如：小明、阿達" maxlength="10">
@@ -279,14 +276,12 @@
     <button class="btn-action" onclick="copyShareLink()">📋 複製這桌連結發群組</button>
   </div>
 
-  <!-- 即時在線人員列 -->
   <div class="online-bar">
     <span style="color:#94a3b8;">🟢 在線人員 (<span id="onlineCount">0</span>)：</span>
     <div id="onlineMembers" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
   </div>
 
   <div class="layout">
-    <!-- 左側菜單 -->
     <div class="panel">
       <div class="slot-box">
         <div>
@@ -296,7 +291,6 @@
         <button class="btn-action" style="background:#f59e0b; color:#000;" onclick="rollSlot()">🎰 抽一道</button>
       </div>
 
-      <!-- 關鍵字搜尋與分類篩選 -->
       <div class="filter-bar">
         <input type="text" id="searchInput" class="search-input" placeholder="🔍 快速搜尋菜名 (如: 蝦、牛、湯...)" oninput="renderMenu()">
         <select id="catSelect" onchange="renderMenu()">
@@ -307,11 +301,10 @@
       <div id="menuList"></div>
     </div>
 
-    <!-- 右側分組清單 -->
     <div class="panel cart-box">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <h2 style="font-size:16px;">全桌點餐明細</h2>
-        <span style="font-size:11px; color:#94a3b8;">(任何人皆可修改/刪除)</span>
+        <span style="font-size:11px; color:#94a3b8;">(所有人皆可修改/刪除)</span>
       </div>
       
       <div id="userCartList" style="max-height:380px; overflow-y:auto;">
@@ -344,8 +337,11 @@
       "火鍋・湯品": [["蛤仔湯",200],["味噌魚湯",220],["酸菜蚵仔湯",220],["田雞蛤仔湯",380],["黃金鍋 (小)",380],["黃金鍋 (大)",680],["蒜頭蛤仔雞湯",680],["剝皮辣椒雞湯",680],["中卷米粉湯",680],["砂鍋魚頭鍋",780]]
     };
 
+    // 唯一 Client 標記（防止廣播回流重複點餐）
+    const clientId = 'c_' + Math.random().toString(36).substring(2, 9);
+
     let currentUser = localStorage.getItem('order_user_name') || "";
-    let currentRoom = "";
+    let currentRoom = localStorage.getItem('order_room_name') || "";
     let client = null;
     let orders = {};
     let onlineUsers = new Set();
@@ -354,9 +350,24 @@
     const urlParams = new URLSearchParams(window.location.search);
     const paramRoom = urlParams.get('room');
 
-    if (currentUser) {
-      document.getElementById('inputName').value = currentUser;
-    }
+    // 啟動自我檢查：免重複登入
+    window.addEventListener('DOMContentLoaded', () => {
+      // 網址若強制帶房號，以網址房號優先
+      if (paramRoom) currentRoom = paramRoom;
+
+      if (currentUser && currentRoom) {
+        document.getElementById('userDisplay').innerText = currentUser;
+        document.getElementById('roomDisplay').innerText = currentRoom;
+        document.getElementById('entryModal').style.display = 'none';
+        initConnection();
+      } else {
+        if (currentUser) document.getElementById('inputName').value = currentUser;
+        document.getElementById('entryModal').style.display = 'flex';
+      }
+
+      initCategories();
+      renderMenu();
+    });
 
     function handleChoice(mode) {
       const name = document.getElementById('inputName').value.trim();
@@ -367,10 +378,11 @@
       const custom = document.getElementById('customRoomInput').value.trim();
 
       if (mode === 'JOIN') {
-        currentRoom = paramRoom || custom || "桌號_01";
+        currentRoom = paramRoom || custom || currentRoom || "桌號_01";
       } else {
         currentRoom = "新桌_" + Math.floor(Math.random() * 899 + 100);
       }
+      localStorage.setItem('order_room_name', currentRoom);
 
       window.history.replaceState({}, '', `?room=${encodeURIComponent(currentRoom)}`);
 
@@ -384,6 +396,7 @@
     function reopenModal() {
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       if (client) client.end();
+      document.getElementById('inputName').value = currentUser;
       document.getElementById('entryModal').style.display = 'flex';
     }
 
@@ -421,17 +434,24 @@
             onlineUsers.add(data.user);
             renderOnlineBar();
           } else if (data.type === 'ADD') {
-            doAdd(data.user, data.item, data.price);
-            renderCartUI();
-            showToast(`🔔 ${data.user} 點了 ${data.item}`);
+            // ★ 核心修復：如果訊息來自自己，本地已先更新過，直接跳過不重複加單
+            if (data.sender !== clientId) {
+              doAdd(data.user, data.item, data.price);
+              renderCartUI();
+              showToast(`🔔 ${data.user} 點了 ${data.item}`);
+            }
           } else if (data.type === 'MINUS') {
-            doMinus(data.targetUser, data.item);
-            renderCartUI();
-            showToast(`🔻 ${data.byUser} 減了 ${data.targetUser} 的 ${data.item}`);
+            if (data.sender !== clientId) {
+              doMinus(data.targetUser, data.item);
+              renderCartUI();
+              showToast(`🔻 ${data.byUser} 減了 ${data.targetUser} 的 ${data.item}`);
+            }
           } else if (data.type === 'DELETE_ITEM') {
-            doDeleteItem(data.targetUser, data.item);
-            renderCartUI();
-            showToast(`🗑️ ${data.byUser} 刪除了 ${data.targetUser} 的 ${data.item}`);
+            if (data.sender !== clientId) {
+              doDeleteItem(data.targetUser, data.item);
+              renderCartUI();
+              showToast(`🗑️ ${data.byUser} 刪除了 ${data.targetUser} 的 ${data.item}`);
+            }
           } else if (data.type === 'CLEAR') {
             orders = {};
             renderCartUI();
@@ -462,17 +482,35 @@
     }
 
     function addDish(item, price) {
+      // 1. 本地先加 1
       doAdd(currentUser, item, price);
       renderCartUI();
+      // 2. 廣播出去，帶上 clientId 避免回流重複點單
       const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
-      client.publish(topic, JSON.stringify({ type: 'ADD', user: currentUser, item, price }));
+      if (client && client.connected) {
+        client.publish(topic, JSON.stringify({
+          type: 'ADD',
+          user: currentUser,
+          item: item,
+          price: price,
+          sender: clientId
+        }));
+      }
     }
 
     function minusDish(targetUser, item) {
       doMinus(targetUser, item);
       renderCartUI();
       const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
-      client.publish(topic, JSON.stringify({ type: 'MINUS', targetUser, byUser: currentUser, item }));
+      if (client && client.connected) {
+        client.publish(topic, JSON.stringify({
+          type: 'MINUS',
+          targetUser: targetUser,
+          byUser: currentUser,
+          item: item,
+          sender: clientId
+        }));
+      }
     }
 
     function deleteEntireItem(targetUser, item) {
@@ -480,7 +518,15 @@
       doDeleteItem(targetUser, item);
       renderCartUI();
       const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
-      client.publish(topic, JSON.stringify({ type: 'DELETE_ITEM', targetUser, byUser: currentUser, item }));
+      if (client && client.connected) {
+        client.publish(topic, JSON.stringify({
+          type: 'DELETE_ITEM',
+          targetUser: targetUser,
+          byUser: currentUser,
+          item: item,
+          sender: clientId
+        }));
+      }
     }
 
     function doAdd(user, item, price) {
@@ -579,7 +625,9 @@
           orders = {};
           renderCartUI();
           const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
-          client.publish(topic, JSON.stringify({ type: 'CLEAR', user: currentUser }));
+          if (client && client.connected) {
+            client.publish(topic, JSON.stringify({ type: 'CLEAR', user: currentUser }));
+          }
           resetClearBtn();
         }
       }, 1000);
@@ -606,7 +654,7 @@
     function copyShareLink() {
       const cleanUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(currentRoom)}`;
       navigator.clipboard.writeText(cleanUrl).then(() => {
-        alert(`已複製【${currentRoom}】連結！\n傳給同事或朋友，點開就能看到彼此並共同點餐！`);
+        alert(`已複製【${currentRoom}】連結！\n傳給朋友，他們點開直接進入這桌。`);
       });
     }
 
@@ -627,16 +675,18 @@
       }, 60);
     }
 
-    // 初始化類別下拉選單
-    const sel = document.getElementById("catSelect");
-    for (let c in menu) {
-      let opt = document.createElement("option");
-      opt.value = c; opt.innerText = c; sel.appendChild(opt);
+    function initCategories() {
+      const sel = document.getElementById("catSelect");
+      sel.innerHTML = '<option value="ALL">全部類別</option>';
+      for (let c in menu) {
+        let opt = document.createElement("option");
+        opt.value = c; opt.innerText = c; sel.appendChild(opt);
+      }
     }
 
-    // ★ 關鍵：支援搜尋關鍵字與類別篩選
     function renderMenu() {
-      const cVal = sel.value;
+      const sel = document.getElementById("catSelect");
+      const cVal = sel ? sel.value : "ALL";
       const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
       const container = document.getElementById("menuList");
       container.innerHTML = "";
@@ -645,7 +695,6 @@
       let matchCount = 0;
 
       cats.forEach(cat => {
-        // 先篩選符合關鍵字的菜
         const filteredItems = menu[cat].filter(([name]) => {
           return !keyword || name.toLowerCase().includes(keyword);
         });
@@ -696,8 +745,6 @@
       t += `-------------------------\n全桌總計：NT$ ${grandTotal} 元`;
       navigator.clipboard.writeText(t).then(() => alert("已複製分帳清單！"));
     }
-
-    renderMenu();
   </script>
 </body>
 </html>
