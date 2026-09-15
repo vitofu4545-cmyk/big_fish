@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>漁很大 - 多人有序點餐系統</title>
+  <title>漁很大 - 點餐模式選擇</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
@@ -20,17 +20,40 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg);
       color: var(--text);
-      padding: 14px;
+      padding: 16px;
     }
     .header { text-align: center; margin-bottom: 14px; }
-    .header h1 { font-size: 22px; color: #60a5fa; }
+    .header h1 { font-size: 24px; color: #60a5fa; }
     
+    /* 進入模式選擇遮罩 */
+    #modeModal {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
+      display: flex; justify-content: center; align-items: center; z-index: 1000;
+    }
+    .modal-box {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 26px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    }
+    .modal-input {
+      width: 100%; padding: 10px; margin: 8px 0 16px; border-radius: 8px;
+      border: 1px solid var(--border); background: #0f172a; color: #fff; font-size: 15px; text-align: center;
+    }
+    .mode-btn-group { display: flex; flex-direction: column; gap: 12px; }
+    .btn-mode {
+      padding: 14px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; border: none;
+      display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s;
+    }
+    .btn-mode:active { transform: scale(0.98); }
+    .btn-new { background: #2563eb; color: white; }
+    .btn-join { background: #059669; color: white; }
+
+    /* 頂部操作列 */
     .room-bar {
       max-width: 1200px;
       margin: 0 auto 14px;
       background: var(--card);
       border-radius: 10px;
-      padding: 10px 14px;
+      padding: 10px 16px;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
@@ -40,9 +63,10 @@
       font-size: 14px;
     }
     .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #065f46; color: #6ee7b7; }
-    .btn-action { background: var(--primary); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    .btn-nick { background: #334155; border: 1px solid #475569; color: #93c5fd; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 6px; }
+    .btn-action { background: var(--primary); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+    .btn-switch { background: #334155; border: 1px solid #475569; color: #93c5fd; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 6px; }
 
+    /* 雙欄 */
     .layout {
       max-width: 1200px;
       margin: 0 auto;
@@ -75,7 +99,8 @@
       padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
     }
 
-    .cart-box { position: sticky; top: 14px; }
+    /* 右側個人清單 */
+    .cart-box { position: sticky; top: 16px; }
     .user-group {
       background: #0f172a;
       border-radius: 8px;
@@ -138,24 +163,47 @@
 </head>
 <body>
 
+  <!-- 進來直接選：開新菜單 OR 加入現有菜單 -->
+  <div id="modeModal">
+    <div class="modal-box">
+      <h2 style="font-size:20px; color:#60a5fa; margin-bottom:6px;">🍻 漁很大 點餐連線</h2>
+      <p style="font-size:13px; color:#94a3b8; margin-bottom:14px;">請輸入您的點餐姓名並選擇模式：</p>
+      
+      <input type="text" id="inputName" class="modal-input" placeholder="請輸入姓名 (例如：小明)" maxlength="10">
+
+      <div class="mode-btn-group">
+        <button class="btn-mode btn-new" onclick="selectMode('NEW')">
+          ➕ 開新菜單（新開一桌）
+        </button>
+
+        <div style="font-size:12px; color:#64748b; margin:2px 0;">— 或者加入朋友已開的單 —</div>
+
+        <input type="text" id="inputRoom" class="modal-input" style="margin:0 0 8px;" placeholder="輸入桌號 / 房號 (預設: 01桌)" value="01桌">
+        <button class="btn-mode btn-join" onclick="selectMode('JOIN')">
+          🔗 加入現有菜單（共用點餐）
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast">🔔 通知</div>
 
   <div class="header">
-    <h1>🍻 漁很大 點餐（防亂分組版）</h1>
+    <h1>🍻 漁很大 多人連線點餐系統</h1>
   </div>
 
   <div class="room-bar">
-    <div>
-      房號：<strong id="roomLabel" style="color:#f59e0b;">...</strong>
-      <span class="badge" id="netStatus" style="margin-left:6px;">連線中</span>
-      <span style="margin-left:8px; color:#cbd5e1;">我是：<strong id="myNick" style="color:#60a5fa;">...</strong></span>
-      <button class="btn-nick" onclick="changeNick()">✏️ 改名</button>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span class="badge" id="netStatus">連線中</span>
+      <span>桌號：<strong id="roomDisplay" style="color:#f59e0b; font-size:15px;">...</strong></span>
+      <span>｜ 點餐人：<strong id="userDisplay" style="color:#60a5fa; font-size:15px;">...</strong></span>
+      <button class="btn-switch" onclick="switchTable()">切換桌號/姓名</button>
     </div>
-    <button class="btn-action" onclick="shareRoom()">📋 複製房號連結</button>
+    <button class="btn-action" onclick="copyTableLink()">📋 複製這桌的邀請連結</button>
   </div>
 
   <div class="layout">
-    <!-- 菜單 -->
+    <!-- 左側菜單 -->
     <div class="panel">
       <div class="slot-box">
         <div>
@@ -174,12 +222,12 @@
       <div id="menuList"></div>
     </div>
 
-    <!-- 即時個人分組清單 -->
+    <!-- 右側分組清單 -->
     <div class="panel cart-box">
-      <h2 style="font-size:16px; margin-bottom:10px;">目前點餐明細（依個人分類）</h2>
+      <h2 style="font-size:16px; margin-bottom:10px;">目前桌單明細（依姓名歸類）</h2>
       
       <div id="userCartList" style="max-height:380px; overflow-y:auto;">
-        <div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">還沒有人點餐～</div>
+        <div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">這桌還沒有人點餐～</div>
       </div>
 
       <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:10px; display:flex; justify-content:space-between; align-items:baseline;">
@@ -187,10 +235,8 @@
         <span class="total-price">NT$ <span id="totalPrice">0</span></span>
       </div>
 
-      <button class="btn-action" style="width:100%; background:#10b981; padding:10px; margin-top:10px;" onclick="copyOrder()">📋 複製結帳分帳明細 (貼 LINE)</button>
-      
-      <!-- 長按 3 秒防誤觸清空 -->
-      <button class="btn-clear-hold" id="clearHoldBtn">⚠️ 長按 3 秒清空整桌訂單</button>
+      <button class="btn-action" style="width:100%; background:#10b981; padding:10px; margin-top:10px;" onclick="copyOrder()">📋 複製分帳結算清單 (貼聊天室)</button>
+      <button class="btn-clear-hold" id="clearHoldBtn">⚠️ 長按 3 秒清空這桌訂單</button>
     </div>
   </div>
 
@@ -210,97 +256,116 @@
       "火鍋・湯品": [["蛤仔湯",200],["味噌魚湯",220],["酸菜蚵仔湯",220],["田雞蛤仔湯",380],["黃金鍋 (小)",380],["黃金鍋 (大)",680],["蒜頭蛤仔雞湯",680],["剝皮辣椒雞湯",680],["中卷米粉湯",680],["砂鍋魚頭鍋",780]]
     };
 
-    // ★ 關鍵防分身邏輯：名字直接綁在網址 query 參數，重新整理 100% 不會換人
-    const urlParams = new URLSearchParams(window.location.search);
-    let room = urlParams.get('room') || 'table_01';
-    let myName = urlParams.get('user') || localStorage.getItem('order_fixed_name');
-
-    if (!myName) {
-      myName = prompt("請輸入您的姓名/暱稱（將固定綁定此手機）：", "朋友" + Math.floor(Math.random()*90+10)) || "朋友";
-      localStorage.setItem('order_fixed_name', myName);
-    }
-
-    // 將名字與房號鎖死在網址列
-    urlParams.set('room', room);
-    urlParams.set('user', myName);
-    window.history.replaceState({}, '', `?${urlParams.toString()}`);
-
-    document.getElementById("myNick").innerText = myName;
-    document.getElementById("roomLabel").innerText = room;
-
-    function changeNick() {
-      const newName = prompt("請輸入新暱稱：", myName);
-      if (newName && newName !== myName) {
-        myName = newName;
-        localStorage.setItem('order_fixed_name', myName);
-        urlParams.set('user', myName);
-        window.location.search = urlParams.toString();
-      }
-    }
-
+    let currentRoom = "";
+    let currentUser = "";
+    let client = null;
     let orders = {};
 
-    const topic = `yuhenda_order_v3_${room}`;
-    const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+    // 檢查網址是否已帶房號
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramRoom = urlParams.get('room');
+    if (paramRoom) {
+      document.getElementById('inputRoom').value = paramRoom;
+    }
 
-    client.on('connect', () => {
-      document.getElementById("netStatus").innerText = "🟢 已連線";
-      client.subscribe(topic);
-      client.publish(topic, JSON.stringify({ type: 'REQ_SYNC' }));
-    });
+    // 帶入之前記住的名字
+    const cachedName = localStorage.getItem('order_saved_name');
+    if (cachedName) document.getElementById('inputName').value = cachedName;
 
-    client.on('message', (t, message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        if (data.type === 'SYNC') {
-          orders = data.orders;
-          renderCartUI();
-        } else if (data.type === 'ADD') {
-          doAdd(data.user, data.item, data.price);
-          renderCartUI();
-          showToast(`🔔 ${data.user} 點了 ${data.item}`);
-        } else if (data.type === 'MINUS') {
-          doMinus(data.user, data.item);
-          renderCartUI();
-        } else if (data.type === 'CLEAR') {
-          orders = {};
-          renderCartUI();
-          showToast(`🗑️ ${data.user} 清空了訂單`);
-        } else if (data.type === 'REQ_SYNC') {
-          if (Object.keys(orders).length > 0) {
-            client.publish(topic, JSON.stringify({ type: 'SYNC', orders: orders }));
+    function selectMode(mode) {
+      const name = document.getElementById('inputName').value.trim();
+      if (!name) return alert("請輸入您的姓名！");
+      currentUser = name;
+      localStorage.setItem('order_saved_name', currentUser);
+
+      if (mode === 'NEW') {
+        // 開新菜單：自動隨機新桌號
+        currentRoom = "桌號-" + Math.floor(Math.random() * 899 + 100);
+      } else {
+        // 加入現有菜單
+        currentRoom = document.getElementById('inputRoom').value.trim() || "01桌";
+      }
+
+      // 網址綁定 room，讓複製連結時大家能直接進同桌
+      window.history.replaceState({}, '', `?room=${encodeURIComponent(currentRoom)}`);
+
+      document.getElementById('roomDisplay').innerText = currentRoom;
+      document.getElementById('userDisplay').innerText = currentUser;
+      document.getElementById('modeModal').style.display = 'none';
+
+      initConnection();
+    }
+
+    function switchTable() {
+      if (client) client.end();
+      document.getElementById('modeModal').style.display = 'flex';
+    }
+
+    function initConnection() {
+      const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+      client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+
+      client.on('connect', () => {
+        document.getElementById("netStatus").innerText = "🟢 已連線";
+        client.subscribe(topic);
+        client.publish(topic, JSON.stringify({ type: 'REQ_SYNC' }));
+      });
+
+      client.on('message', (t, message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.type === 'SYNC') {
+            orders = data.orders;
+            renderCartUI();
+          } else if (data.type === 'ADD') {
+            doAdd(data.user, data.item, data.price);
+            renderCartUI();
+            showToast(`🔔 ${data.user} 點了 ${data.item}`);
+          } else if (data.type === 'MINUS') {
+            doMinus(data.user, data.item);
+            renderCartUI();
+          } else if (data.type === 'CLEAR') {
+            orders = {};
+            renderCartUI();
+            showToast(`🗑️ ${data.user} 清空了這桌的訂單`);
+          } else if (data.type === 'REQ_SYNC') {
+            if (Object.keys(orders).length > 0) {
+              client.publish(topic, JSON.stringify({ type: 'SYNC', orders: orders }));
+            }
           }
-        }
-      } catch(e) {}
-    });
+        } catch(e) {}
+      });
+    }
 
     function addDish(item, price) {
-      doAdd(myName, item, price);
+      doAdd(currentUser, item, price);
       renderCartUI();
-      client.publish(topic, JSON.stringify({ type: 'ADD', user: myName, item, price }));
+      const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+      client.publish(topic, JSON.stringify({ type: 'ADD', user: currentUser, item, price }));
     }
 
     function minusDish(user, item) {
-      if (user !== myName) {
+      if (user !== currentUser) {
         alert("只能取消你自己點的菜色喔！");
         return;
       }
       doMinus(user, item);
       renderCartUI();
-      client.publish(topic, JSON.stringify({ type: 'MINUS', user, item }));
+      const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+      client.publish(topic, JSON.stringify({ type: 'MINUS', user: currentUser, item }));
     }
 
-    function doAdd(u, item, price) {
-      if (!orders[u]) orders[u] = {};
-      if (!orders[u][item]) orders[u][item] = { price, qty: 0 };
-      orders[u][item].qty += 1;
+    function doAdd(user, item, price) {
+      if (!orders[user]) orders[user] = {};
+      if (!orders[user][item]) orders[user][item] = { price, qty: 0 };
+      orders[user][item].qty += 1;
     }
 
-    function doMinus(u, item) {
-      if (orders[u] && orders[u][item]) {
-        orders[u][item].qty -= 1;
-        if (orders[u][item].qty <= 0) delete orders[u][item];
-        if (Object.keys(orders[u]).length === 0) delete orders[u];
+    function doMinus(user, item) {
+      if (orders[user] && orders[user][item]) {
+        orders[user][item].qty -= 1;
+        if (orders[user][item].qty <= 0) delete orders[user][item];
+        if (Object.keys(orders[user]).length === 0) delete orders[user];
       }
     }
 
@@ -310,7 +375,7 @@
       const users = Object.keys(orders);
 
       if (users.length === 0) {
-        el.innerHTML = `<div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">還沒有人點餐～</div>`;
+        el.innerHTML = `<div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">這桌還沒有人點餐～</div>`;
         totalEl.innerText = "0";
         return;
       }
@@ -318,17 +383,18 @@
       let grandTotal = 0;
       let html = "";
 
-      users.forEach(u => {
+      users.forEach(user => {
         let userSubtotal = 0;
         let itemsHtml = "";
 
-        for (let item in orders[u]) {
-          const { price, qty } = orders[u][item];
+        for (let item in orders[user]) {
+          const { price, qty } = orders[user][item];
           const sub = price * qty;
           userSubtotal += sub;
           grandTotal += sub;
 
-          const minusBtn = (u === myName) ? `<button class="btn-minus" onclick="minusDish('${u}', '${item}')">-1</button>` : '';
+          const isMe = (user === currentUser);
+          const minusBtn = isMe ? `<button class="btn-minus" onclick="minusDish('${user}', '${item}')">-1</button>` : '';
 
           itemsHtml += `
             <div class="cart-row">
@@ -341,7 +407,7 @@
         html += `
           <div class="user-group">
             <div class="user-group-header">
-              <span>👤 ${u} ${u === myName ? '(我)' : ''}</span>
+              <span>👤 ${user} ${user === currentUser ? '(我)' : ''}</span>
               <span>應付: $${userSubtotal}</span>
             </div>
             ${itemsHtml}
@@ -353,14 +419,12 @@
       totalEl.innerText = grandTotal.toLocaleString();
     }
 
+    // 長按 3 秒防手滑清空
     let holdTimer = null;
     const clearBtn = document.getElementById("clearHoldBtn");
-
     clearBtn.addEventListener('mousedown', startHold);
-    clearBtn.addEventListener('touchstart', startHold);
     clearBtn.addEventListener('mouseup', cancelHold);
     clearBtn.addEventListener('mouseleave', cancelHold);
-    clearBtn.addEventListener('touchend', cancelHold);
 
     function startHold() {
       let count = 3;
@@ -375,7 +439,8 @@
           clearInterval(holdTimer);
           orders = {};
           renderCartUI();
-          client.publish(topic, JSON.stringify({ type: 'CLEAR', user: myName }));
+          const topic = `yuhenda_table_${encodeURIComponent(currentRoom)}`;
+          client.publish(topic, JSON.stringify({ type: 'CLEAR', user: currentUser }));
           resetClearBtn();
         }
       }, 1000);
@@ -389,7 +454,7 @@
     function resetClearBtn() {
       clearBtn.style.background = "#27272a";
       clearBtn.style.color = "#a1a1aa";
-      clearBtn.innerText = "⚠️ 長按 3 秒清空整桌訂單";
+      clearBtn.innerText = "⚠️ 長按 3 秒清空這桌訂單";
     }
 
     function showToast(msg) {
@@ -399,11 +464,10 @@
       setTimeout(() => { t.style.display = "none"; }, 2000);
     }
 
-    // 複製連結給朋友時，只帶房號，不帶個人名字，讓朋友進去時能輸入自己的名字
-    function shareRoom() {
-      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${room}`;
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        alert("已複製房間邀請連結！丟到 LINE 群組，朋友點開就能輸入自己的名字一起點囉！");
+    function copyTableLink() {
+      const cleanUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(currentRoom)}`;
+      navigator.clipboard.writeText(cleanUrl).then(() => {
+        alert(`已複製【${currentRoom}】的專屬連結！\n傳到群組，朋友點開直接就是這桌，輸入名字就能一起點！`);
       });
     }
 
@@ -455,16 +519,16 @@
 
     function copyOrder() {
       const users = Object.keys(orders);
-      if (users.length === 0) return alert("還沒有人點菜喔！");
+      if (users.length === 0) return alert("這桌還沒有人點菜喔！");
 
-      let t = `【漁很大 結帳與分帳清單】\n房號：${room}\n-------------------------\n`;
+      let t = `【漁很大 結帳與分帳清單】\n桌號：${currentRoom}\n-------------------------\n`;
       let grandTotal = 0;
 
-      users.forEach(u => {
+      users.forEach(user => {
         let uTotal = 0;
-        t += `👤【${u}】\n`;
-        for (let item in orders[u]) {
-          const { price, qty } = orders[u][item];
+        t += `👤【${user}】\n`;
+        for (let item in orders[user]) {
+          const { price, qty } = orders[user][item];
           const sub = price * qty;
           uTotal += sub;
           grandTotal += sub;
