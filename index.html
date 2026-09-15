@@ -25,7 +25,6 @@
     .header { text-align: center; margin-bottom: 14px; }
     .header h1 { font-size: 22px; color: #60a5fa; }
     
-    /* 頂部房間與身份設定 */
     .room-bar {
       max-width: 1200px;
       margin: 0 auto 14px;
@@ -42,8 +41,8 @@
     }
     .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #065f46; color: #6ee7b7; }
     .btn-action { background: var(--primary); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .btn-nick { background: #334155; border: 1px solid #475569; color: #93c5fd; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 6px; }
 
-    /* 雙欄 */
     .layout {
       max-width: 1200px;
       margin: 0 auto;
@@ -55,7 +54,6 @@
 
     .panel { background: var(--card); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
     
-    /* 抽籤盲盒 */
     .slot-box {
       background: #1e1b4b; border: 1.5px dashed #818cf8; border-radius: 8px;
       padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
@@ -77,7 +75,6 @@
       padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
     }
 
-    /* 個人化分組清單 */
     .cart-box { position: sticky; top: 14px; }
     .user-group {
       background: #0f172a;
@@ -118,7 +115,6 @@
 
     .total-price { font-size: 26px; font-weight: 900; color: #f87171; }
     
-    /* 防呆長按按鈕 */
     .btn-clear-hold {
       width: 100%;
       background: #27272a;
@@ -153,6 +149,7 @@
       房號：<strong id="roomLabel" style="color:#f59e0b;">...</strong>
       <span class="badge" id="netStatus" style="margin-left:6px;">連線中</span>
       <span style="margin-left:8px; color:#cbd5e1;">我是：<strong id="myNick" style="color:#60a5fa;">...</strong></span>
+      <button class="btn-nick" onclick="changeNick()">✏️ 改名</button>
     </div>
     <button class="btn-action" onclick="shareRoom()">📋 複製房號連結</button>
   </div>
@@ -213,26 +210,37 @@
       "火鍋・湯品": [["蛤仔湯",200],["味噌魚湯",220],["酸菜蚵仔湯",220],["田雞蛤仔湯",380],["黃金鍋 (小)",380],["黃金鍋 (大)",680],["蒜頭蛤仔雞湯",680],["剝皮辣椒雞湯",680],["中卷米粉湯",680],["砂鍋魚頭鍋",780]]
     };
 
-    // 取得暱稱
-    let myName = localStorage.getItem('order_my_name');
-    if (!myName) {
-      myName = prompt("請輸入您的姓名/暱稱：", "朋友" + Math.floor(Math.random()*90+10)) || "朋友";
-      localStorage.setItem('order_my_name', myName);
-    }
-    document.getElementById("myNick").innerText = myName;
-
-    // 固定房間代碼（預設 table_01，避免混亂）
+    // ★ 關鍵防分身邏輯：名字直接綁在網址 query 參數，重新整理 100% 不會換人
     const urlParams = new URLSearchParams(window.location.search);
     let room = urlParams.get('room') || 'table_01';
-    document.getElementById("roomLabel").innerText = room;
-    if (!urlParams.get('room')) {
-      window.history.replaceState({}, '', `?room=${room}`);
+    let myName = urlParams.get('user') || localStorage.getItem('order_fixed_name');
+
+    if (!myName) {
+      myName = prompt("請輸入您的姓名/暱稱（將固定綁定此手機）：", "朋友" + Math.floor(Math.random()*90+10)) || "朋友";
+      localStorage.setItem('order_fixed_name', myName);
     }
 
-    // 訂單格式: { "小明": { "三杯土雞": { price: 450, qty: 1 } } }
+    // 將名字與房號鎖死在網址列
+    urlParams.set('room', room);
+    urlParams.set('user', myName);
+    window.history.replaceState({}, '', `?${urlParams.toString()}`);
+
+    document.getElementById("myNick").innerText = myName;
+    document.getElementById("roomLabel").innerText = room;
+
+    function changeNick() {
+      const newName = prompt("請輸入新暱稱：", myName);
+      if (newName && newName !== myName) {
+        myName = newName;
+        localStorage.setItem('order_fixed_name', myName);
+        urlParams.set('user', myName);
+        window.location.search = urlParams.toString();
+      }
+    }
+
     let orders = {};
 
-    const topic = `yuhenda_order_v2_${room}`;
+    const topic = `yuhenda_order_v3_${room}`;
     const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
     client.on('connect', () => {
@@ -296,7 +304,6 @@
       }
     }
 
-    // 依人名渲染個人清單
     function renderCartUI() {
       const el = document.getElementById("userCartList");
       const totalEl = document.getElementById("totalPrice");
@@ -321,7 +328,6 @@
           userSubtotal += sub;
           grandTotal += sub;
 
-          // 本人的菜才顯示扣除按鈕
           const minusBtn = (u === myName) ? `<button class="btn-minus" onclick="minusDish('${u}', '${item}')">-1</button>` : '';
 
           itemsHtml += `
@@ -347,7 +353,6 @@
       totalEl.innerText = grandTotal.toLocaleString();
     }
 
-    // 防手滑：長按 3 秒清空
     let holdTimer = null;
     const clearBtn = document.getElementById("clearHoldBtn");
 
@@ -394,9 +399,11 @@
       setTimeout(() => { t.style.display = "none"; }, 2000);
     }
 
+    // 複製連結給朋友時，只帶房號，不帶個人名字，讓朋友進去時能輸入自己的名字
     function shareRoom() {
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        alert("已複製專屬房號連結！直接傳到群組即可。");
+      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${room}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert("已複製房間邀請連結！丟到 LINE 群組，朋友點開就能輸入自己的名字一起點囉！");
       });
     }
 
@@ -417,7 +424,6 @@
       }, 60);
     }
 
-    // 菜單生成
     const sel = document.getElementById("catSelect");
     for (let c in menu) {
       let opt = document.createElement("option");
@@ -447,7 +453,6 @@
       });
     }
 
-    // 複製分帳清單
     function copyOrder() {
       const users = Object.keys(orders);
       if (users.length === 0) return alert("還沒有人點菜喔！");
@@ -469,7 +474,7 @@
       });
 
       t += `-------------------------\n全桌總計：NT$ ${grandTotal} 元`;
-      navigator.clipboard.writeText(t).then(() => alert("已複製完整分帳清單！貼給群組直接知道每個人要付多少錢。"));
+      navigator.clipboard.writeText(t).then(() => alert("已複製完整分帳清單！"));
     }
 
     renderMenu();
