@@ -3,152 +3,197 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>漁很大 - 多人即時同步點餐</title>
-  <!-- 引入免費即時同步廣播庫 -->
+  <title>漁很大 - 多人有序點餐系統</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
-      --primary: #3b82f6;
+      --primary: #2563eb;
       --accent: #f59e0b;
       --danger: #ef4444;
       --bg: #0f172a;
       --card: #1e293b;
       --text: #f8fafc;
-      --text-sub: #94a3b8;
+      --border: #334155;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg);
       color: var(--text);
-      padding: 16px;
+      padding: 14px;
     }
-    .header { text-align: center; margin-bottom: 16px; }
-    .header h1 { font-size: 24px; color: #60a5fa; }
+    .header { text-align: center; margin-bottom: 14px; }
+    .header h1 { font-size: 22px; color: #60a5fa; }
     
+    /* 頂部房間與身份設定 */
     .room-bar {
       max-width: 1200px;
-      margin: 0 auto 16px;
+      margin: 0 auto 14px;
       background: var(--card);
-      border-radius: 12px;
-      padding: 12px 18px;
+      border-radius: 10px;
+      padding: 10px 14px;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      border: 1px solid #334155;
-      gap: 10px;
+      border: 1px solid var(--border);
+      gap: 8px;
+      font-size: 14px;
     }
-    .badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; background: #065f46; color: #6ee7b7; }
-    .badge.offline { background: #7f1d1d; color: #fca5a5; }
-    .btn-room { background: var(--primary); border: none; color: white; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+    .badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; background: #065f46; color: #6ee7b7; }
+    .btn-action { background: var(--primary); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
+    /* 雙欄 */
     .layout {
       max-width: 1200px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr 380px;
-      gap: 20px;
+      gap: 16px;
     }
     @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 
-    .panel { background: var(--card); border-radius: 12px; padding: 18px; border: 1px solid #334155; }
+    .panel { background: var(--card); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
     
+    /* 抽籤盲盒 */
     .slot-box {
-      background: linear-gradient(135deg, #1e1b4b, #312e81);
-      border: 2px dashed #818cf8;
-      border-radius: 10px;
-      padding: 12px 16px;
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      background: #1e1b4b; border: 1.5px dashed #818cf8; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
     }
-    .btn-slot { background: var(--accent); color: #000; font-weight: 800; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 
-    .filter-box { display: flex; gap: 10px; margin-bottom: 14px; }
-    select { flex: 1; padding: 10px; border-radius: 8px; background: #0f172a; color: #fff; border: 1px solid #475569; font-size: 15px; }
+    .filter-box { display: flex; gap: 8px; margin-bottom: 12px; }
+    select { flex: 1; padding: 8px; border-radius: 6px; background: #0f172a; color: #fff; border: 1px solid var(--border); font-size: 14px; }
     
     .item-card {
       display: flex; justify-content: space-between; align-items: center;
-      background: #0f172a; padding: 12px; border-radius: 8px; margin-bottom: 8px;
-      border: 1px solid #334155;
+      background: #0f172a; padding: 10px 12px; border-radius: 6px; margin-bottom: 6px;
+      border: 1px solid var(--border);
     }
-    .item-name { font-weight: bold; font-size: 15px; }
-    .item-price { color: #f87171; font-weight: 800; font-size: 14px; margin-top: 2px; }
+    .item-name { font-weight: bold; font-size: 14px; }
+    .item-price { color: #f87171; font-weight: bold; font-size: 13px; margin-top: 2px; }
     
     .btn-add {
       background: var(--primary); border: none; color: white;
-      padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;
+      padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
     }
 
-    .cart-box { position: sticky; top: 16px; }
-    .cart-item {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 0; border-bottom: 1px solid #334155; font-size: 14px;
+    /* 個人化分組清單 */
+    .cart-box { position: sticky; top: 14px; }
+    .user-group {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
     }
-    .who-tag { font-size: 11px; background: #334155; color: #93c5fd; padding: 2px 6px; border-radius: 4px; margin-right: 4px; }
-    .total-price { font-size: 28px; font-weight: 900; color: #f87171; }
+    .user-group-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      color: #93c5fd;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .cart-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .btn-minus {
+      background: #334155;
+      color: #fca5a5;
+      border: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-left: 6px;
+    }
+    .btn-minus:hover { background: #dc2626; color: white; }
+
+    .total-price { font-size: 26px; font-weight: 900; color: #f87171; }
     
+    /* 防呆長按按鈕 */
+    .btn-clear-hold {
+      width: 100%;
+      background: #27272a;
+      border: 1px solid #52525b;
+      color: #a1a1aa;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 8px;
+      user-select: none;
+    }
+
     #toast {
-      position: fixed; top: 20px; right: 20px;
+      position: fixed; top: 16px; right: 16px;
       background: #f59e0b; color: #000; font-weight: bold;
-      padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-      display: none; z-index: 999;
+      padding: 10px 16px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      display: none; z-index: 999; font-size: 13px;
     }
   </style>
 </head>
 <body>
 
-  <div id="toast">🔔 通知訊息</div>
+  <div id="toast">🔔 通知</div>
 
   <div class="header">
-    <h1>🍻 漁很大 多人同步點餐</h1>
-    <p style="color:var(--text-sub); font-size:13px;">雲端廣播通道・隨點隨更新</p>
+    <h1>🍻 漁很大 點餐（防亂分組版）</h1>
   </div>
 
   <div class="room-bar">
     <div>
-      狀態：<span class="badge" id="netStatus">連線中...</span>
-      <span style="margin-left: 10px; font-size:14px; color:#93c5fd;">我是：<strong id="myNick">...</strong></span>
+      房號：<strong id="roomLabel" style="color:#f59e0b;">...</strong>
+      <span class="badge" id="netStatus" style="margin-left:6px;">連線中</span>
+      <span style="margin-left:8px; color:#cbd5e1;">我是：<strong id="myNick" style="color:#60a5fa;">...</strong></span>
     </div>
-    <button class="btn-room" onclick="shareRoom()">📋 複製邀請連結發群組</button>
+    <button class="btn-action" onclick="shareRoom()">📋 複製房號連結</button>
   </div>
 
   <div class="layout">
-    <!-- 左邊菜單 -->
+    <!-- 菜單 -->
     <div class="panel">
       <div class="slot-box">
         <div>
-          <div style="font-weight:bold; font-size:14px;">🎲 選擇障礙救星</div>
-          <div id="slotResult" style="font-size:12px; color:#cbd5e1;">點擊拉霸，隨機抽一道！</div>
+          <div style="font-weight:bold; font-size:13px;">🎲 盲盒點餐</div>
+          <div id="slotResult" style="font-size:12px; color:#94a3b8;">不知道吃什麼？按一下幫你挑</div>
         </div>
-        <button class="btn-slot" onclick="rollSlot()">🎰 抽一道！</button>
+        <button class="btn-action" style="background:#f59e0b; color:#000;" onclick="rollSlot()">🎰 抽一道</button>
       </div>
 
       <div class="filter-box">
         <select id="catSelect" onchange="renderMenu()">
-          <option value="ALL">★ 全部類別</option>
+          <option value="ALL">★ 全部菜色</option>
         </select>
       </div>
 
       <div id="menuList"></div>
     </div>
 
-    <!-- 右邊購物車 -->
+    <!-- 即時個人分組清單 -->
     <div class="panel cart-box">
-      <h2 style="font-size:18px; margin-bottom:12px;">即時全桌清單</h2>
-      <div id="cartItems" style="max-height:360px; overflow-y:auto; margin-bottom:12px;">
-        <div style="text-align:center; color:#64748b; padding:30px 0;">目前還沒有人點菜喔！</div>
+      <h2 style="font-size:16px; margin-bottom:10px;">目前點餐明細（依個人分類）</h2>
+      
+      <div id="userCartList" style="max-height:380px; overflow-y:auto;">
+        <div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">還沒有人點餐～</div>
       </div>
 
-      <div style="border-top:1px solid #334155; padding-top:14px; display:flex; justify-content:space-between; align-items:baseline;">
-        <span style="font-weight:bold;">全桌合計</span>
+      <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:10px; display:flex; justify-content:space-between; align-items:baseline;">
+        <span style="font-weight:bold; font-size:14px;">全桌總計</span>
         <span class="total-price">NT$ <span id="totalPrice">0</span></span>
       </div>
 
-      <button style="width:100%; background:#10b981; color:white; border:none; padding:12px; border-radius:8px; font-weight:bold; cursor:pointer; margin-top:12px;" onclick="copyOrder()">📋 複製最終清單 (貼 LINE)</button>
-      <button style="width:100%; background:transparent; border:1px solid #475569; color:#94a3b8; padding:8px; border-radius:8px; font-size:12px; cursor:pointer; margin-top:8px;" onclick="clearAll()">清空重選</button>
+      <button class="btn-action" style="width:100%; background:#10b981; padding:10px; margin-top:10px;" onclick="copyOrder()">📋 複製結帳分帳明細 (貼 LINE)</button>
+      
+      <!-- 長按 3 秒防誤觸清空 -->
+      <button class="btn-clear-hold" id="clearHoldBtn">⚠️ 長按 3 秒清空整桌訂單</button>
     </div>
   </div>
 
@@ -168,153 +213,211 @@
       "火鍋・湯品": [["蛤仔湯",200],["味噌魚湯",220],["酸菜蚵仔湯",220],["田雞蛤仔湯",380],["黃金鍋 (小)",380],["黃金鍋 (大)",680],["蒜頭蛤仔雞湯",680],["剝皮辣椒雞湯",680],["中卷米粉湯",680],["砂鍋魚頭鍋",780]]
     };
 
-    let nickname = prompt("請輸入您的點餐暱稱：", "吃貨" + Math.floor(Math.random()*90+10)) || "訪客";
-    document.getElementById("myNick").innerText = nickname;
+    // 取得暱稱
+    let myName = localStorage.getItem('order_my_name');
+    if (!myName) {
+      myName = prompt("請輸入您的姓名/暱稱：", "朋友" + Math.floor(Math.random()*90+10)) || "朋友";
+      localStorage.setItem('order_my_name', myName);
+    }
+    document.getElementById("myNick").innerText = myName;
 
-    // 取得或自動建立房間代碼
+    // 固定房間代碼（預設 table_01，避免混亂）
     const urlParams = new URLSearchParams(window.location.search);
-    let room = urlParams.get('room');
-    if (!room) {
-      room = 'room_' + Math.floor(Math.random() * 900000 + 100000);
+    let room = urlParams.get('room') || 'table_01';
+    document.getElementById("roomLabel").innerText = room;
+    if (!urlParams.get('room')) {
       window.history.replaceState({}, '', `?room=${room}`);
     }
 
-    let cart = {};
+    // 訂單格式: { "小明": { "三杯土雞": { price: 450, qty: 1 } } }
+    let orders = {};
 
-    // 連線到全球公開 WebSocket 廣播通道（免註冊、免帳號）
-    const topic = `yuhenda_order_${room}`;
+    const topic = `yuhenda_order_v2_${room}`;
     const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
     client.on('connect', () => {
-      const st = document.getElementById("netStatus");
-      st.innerText = "🟢 同步已連線";
-      st.className = "badge";
+      document.getElementById("netStatus").innerText = "🟢 已連線";
       client.subscribe(topic);
-      // 一進來廣播詢問現有菜單狀態
       client.publish(topic, JSON.stringify({ type: 'REQ_SYNC' }));
     });
 
-    client.on('offline', () => {
-      const st = document.getElementById("netStatus");
-      st.innerText = "🔴 斷線重連中";
-      st.className = "badge offline";
-    });
-
-    // 收到廣播訊息
     client.on('message', (t, message) => {
       try {
         const data = JSON.parse(message.toString());
         if (data.type === 'SYNC') {
-          cart = data.cart;
+          orders = data.orders;
           renderCartUI();
-          if (data.msg) showToast(data.msg);
         } else if (data.type === 'ADD') {
-          updateCart(data.item, data.price, data.user);
+          doAdd(data.user, data.item, data.price);
           renderCartUI();
-          showToast(`🔔 ${data.user} 點了 ${data.item}！`);
+          showToast(`🔔 ${data.user} 點了 ${data.item}`);
+        } else if (data.type === 'MINUS') {
+          doMinus(data.user, data.item);
+          renderCartUI();
         } else if (data.type === 'CLEAR') {
-          cart = {};
+          orders = {};
           renderCartUI();
-          showToast(`🗑️ ${data.user} 清空了菜單！`);
+          showToast(`🗑️ ${data.user} 清空了訂單`);
         } else if (data.type === 'REQ_SYNC') {
-          // 有新人進房，且我手上已有菜單資料時，自動分享給新人
-          if (Object.keys(cart).length > 0) {
-            client.publish(topic, JSON.stringify({ type: 'SYNC', cart: cart }));
+          if (Object.keys(orders).length > 0) {
+            client.publish(topic, JSON.stringify({ type: 'SYNC', orders: orders }));
           }
         }
       } catch(e) {}
     });
 
-    function addDish(name, price) {
-      updateCart(name, price, nickname);
+    function addDish(item, price) {
+      doAdd(myName, item, price);
       renderCartUI();
-      // 廣播給所有人
-      client.publish(topic, JSON.stringify({
-        type: 'ADD',
-        item: name,
-        price: price,
-        user: nickname
-      }));
+      client.publish(topic, JSON.stringify({ type: 'ADD', user: myName, item, price }));
     }
 
-    function updateCart(name, price, user) {
-      if (!cart[name]) {
-        cart[name] = { price, qty: 1, users: [user] };
-      } else {
-        cart[name].qty += 1;
-        if (!cart[name].users.includes(user)) cart[name].users.push(user);
+    function minusDish(user, item) {
+      if (user !== myName) {
+        alert("只能取消你自己點的菜色喔！");
+        return;
+      }
+      doMinus(user, item);
+      renderCartUI();
+      client.publish(topic, JSON.stringify({ type: 'MINUS', user, item }));
+    }
+
+    function doAdd(u, item, price) {
+      if (!orders[u]) orders[u] = {};
+      if (!orders[u][item]) orders[u][item] = { price, qty: 0 };
+      orders[u][item].qty += 1;
+    }
+
+    function doMinus(u, item) {
+      if (orders[u] && orders[u][item]) {
+        orders[u][item].qty -= 1;
+        if (orders[u][item].qty <= 0) delete orders[u][item];
+        if (Object.keys(orders[u]).length === 0) delete orders[u];
       }
     }
 
-    function clearAll() {
-      cart = {};
-      renderCartUI();
-      client.publish(topic, JSON.stringify({ type: 'CLEAR', user: nickname }));
-    }
-
+    // 依人名渲染個人清單
     function renderCartUI() {
-      const el = document.getElementById("cartItems");
+      const el = document.getElementById("userCartList");
       const totalEl = document.getElementById("totalPrice");
-      const keys = Object.keys(cart);
+      const users = Object.keys(orders);
 
-      if (keys.length === 0) {
-        el.innerHTML = `<div style="text-align:center; color:#64748b; padding:30px 0;">目前還沒有人點菜喔！</div>`;
+      if (users.length === 0) {
+        el.innerHTML = `<div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">還沒有人點餐～</div>`;
         totalEl.innerText = "0";
         return;
       }
 
-      let total = 0;
+      let grandTotal = 0;
       let html = "";
-      keys.forEach(k => {
-        const item = cart[k];
-        const sub = item.price * item.qty;
-        total += sub;
-        const usersBadge = item.users.map(u => `<span class="who-tag">${u}</span>`).join('');
-        html += `
-          <div class="cart-item">
-            <div>
-              <div style="font-weight:bold;">${k} x ${item.qty}</div>
-              <div style="margin-top:2px;">${usersBadge}</div>
+
+      users.forEach(u => {
+        let userSubtotal = 0;
+        let itemsHtml = "";
+
+        for (let item in orders[u]) {
+          const { price, qty } = orders[u][item];
+          const sub = price * qty;
+          userSubtotal += sub;
+          grandTotal += sub;
+
+          // 本人的菜才顯示扣除按鈕
+          const minusBtn = (u === myName) ? `<button class="btn-minus" onclick="minusDish('${u}', '${item}')">-1</button>` : '';
+
+          itemsHtml += `
+            <div class="cart-row">
+              <span>${item} × ${qty}</span>
+              <span style="font-weight:bold;">$${sub} ${minusBtn}</span>
             </div>
-            <div style="font-weight:bold; color:#f87171;">$${sub}</div>
+          `;
+        }
+
+        html += `
+          <div class="user-group">
+            <div class="user-group-header">
+              <span>👤 ${u} ${u === myName ? '(我)' : ''}</span>
+              <span>應付: $${userSubtotal}</span>
+            </div>
+            ${itemsHtml}
           </div>
         `;
       });
+
       el.innerHTML = html;
-      totalEl.innerText = total.toLocaleString();
+      totalEl.innerText = grandTotal.toLocaleString();
+    }
+
+    // 防手滑：長按 3 秒清空
+    let holdTimer = null;
+    const clearBtn = document.getElementById("clearHoldBtn");
+
+    clearBtn.addEventListener('mousedown', startHold);
+    clearBtn.addEventListener('touchstart', startHold);
+    clearBtn.addEventListener('mouseup', cancelHold);
+    clearBtn.addEventListener('mouseleave', cancelHold);
+    clearBtn.addEventListener('touchend', cancelHold);
+
+    function startHold() {
+      let count = 3;
+      clearBtn.style.background = "#dc2626";
+      clearBtn.style.color = "#fff";
+      clearBtn.innerText = `⚠️ 請按住不要放 (${count}s)...`;
+      holdTimer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          clearBtn.innerText = `⚠️ 請按住不要放 (${count}s)...`;
+        } else {
+          clearInterval(holdTimer);
+          orders = {};
+          renderCartUI();
+          client.publish(topic, JSON.stringify({ type: 'CLEAR', user: myName }));
+          resetClearBtn();
+        }
+      }, 1000);
+    }
+
+    function cancelHold() {
+      clearInterval(holdTimer);
+      resetClearBtn();
+    }
+
+    function resetClearBtn() {
+      clearBtn.style.background = "#27272a";
+      clearBtn.style.color = "#a1a1aa";
+      clearBtn.innerText = "⚠️ 長按 3 秒清空整桌訂單";
     }
 
     function showToast(msg) {
       const t = document.getElementById("toast");
       t.innerText = msg;
       t.style.display = "block";
-      setTimeout(() => { t.style.display = "none"; }, 2500);
+      setTimeout(() => { t.style.display = "none"; }, 2000);
     }
 
     function shareRoom() {
       navigator.clipboard.writeText(window.location.href).then(() => {
-        alert("已複製房間連結！貼到 LINE 群組，大家手機點進來就會即時連線！");
+        alert("已複製專屬房號連結！直接傳到群組即可。");
       });
     }
 
     function rollSlot() {
       const allDishes = [];
       for (let c in menu) menu[c].forEach(d => allDishes.push(d));
-      let count = 0;
       const res = document.getElementById("slotResult");
+      let count = 0;
       const timer = setInterval(() => {
         const pick = allDishes[Math.floor(Math.random() * allDishes.length)];
-        res.innerText = `轉動中... 👉 ${pick[0]} ($${pick[1]})`;
+        res.innerText = `轉動中... 👉 ${pick[0]}`;
         count++;
-        if (count > 12) {
+        if (count > 10) {
           clearInterval(timer);
-          res.innerHTML = `🎉 恭喜抽中：<strong style="color:#f59e0b;">${pick[0]} ($${pick[1]})</strong>！`;
+          res.innerHTML = `🎉 抽中：<strong style="color:#f59e0b;">${pick[0]}</strong>！`;
           addDish(pick[0], pick[1]);
         }
-      }, 70);
+      }, 60);
     }
 
-    // 渲染分類與菜單
+    // 菜單生成
     const sel = document.getElementById("catSelect");
     for (let c in menu) {
       let opt = document.createElement("option");
@@ -328,7 +431,7 @@
       const cats = (cVal === "ALL") ? Object.keys(menu) : [cVal];
 
       cats.forEach(cat => {
-        let h = `<div style="font-size:15px; font-weight:bold; color:#60a5fa; margin:16px 0 8px; border-left:3px solid #3b82f6; padding-left:8px;">${cat}</div>`;
+        let h = `<div style="font-size:14px; font-weight:bold; color:#60a5fa; margin:14px 0 6px; border-left:3px solid var(--primary); padding-left:6px;">${cat}</div>`;
         menu[cat].forEach(([name, price]) => {
           h += `
             <div class="item-card">
@@ -336,7 +439,7 @@
                 <div class="item-name">${name}</div>
                 <div class="item-price">${price === 0 ? '時價' : '$' + price}</div>
               </div>
-              <button class="btn-add" onclick="addDish('${name}', ${price})">+1 點這道</button>
+              <button class="btn-add" onclick="addDish('${name}', ${price})">+1</button>
             </div>
           `;
         });
@@ -344,18 +447,29 @@
       });
     }
 
+    // 複製分帳清單
     function copyOrder() {
-      const keys = Object.keys(cart);
-      if (keys.length === 0) return alert("購物車是空的！");
-      let t = "【漁很大 多人同步點餐清單】\n";
-      let tot = 0;
-      keys.forEach(k => {
-        const item = cart[k];
-        tot += item.price * item.qty;
-        t += `・${k} x ${item.qty} = $${item.price * item.qty} (點餐人: ${item.users.join(', ')})\n`;
+      const users = Object.keys(orders);
+      if (users.length === 0) return alert("還沒有人點菜喔！");
+
+      let t = `【漁很大 結帳與分帳清單】\n房號：${room}\n-------------------------\n`;
+      let grandTotal = 0;
+
+      users.forEach(u => {
+        let uTotal = 0;
+        t += `👤【${u}】\n`;
+        for (let item in orders[u]) {
+          const { price, qty } = orders[u][item];
+          const sub = price * qty;
+          uTotal += sub;
+          grandTotal += sub;
+          t += `  ・${item} x ${qty} = $${sub}\n`;
+        }
+        t += `  👉 個人小計: $${uTotal}\n\n`;
       });
-      t += `-------------------------\n合計金額：NT$ ${tot} 元`;
-      navigator.clipboard.writeText(t).then(() => alert("已複製到剪貼簿！可直接貼給店家或 LINE。"));
+
+      t += `-------------------------\n全桌總計：NT$ ${grandTotal} 元`;
+      navigator.clipboard.writeText(t).then(() => alert("已複製完整分帳清單！貼給群組直接知道每個人要付多少錢。"));
     }
 
     renderMenu();
