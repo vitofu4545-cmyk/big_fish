@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>漁很大 - 即時點餐系統</title>
+  <title>漁很大 - 即時共用點餐</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
@@ -25,7 +25,7 @@
     .header { text-align: center; margin-bottom: 12px; }
     .header h1 { font-size: 22px; color: #60a5fa; }
     
-    /* 入場選擇彈窗 */
+    /* 入場彈窗 */
     #entryModal {
       position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95);
       display: flex; justify-content: center; align-items: center; z-index: 1000;
@@ -41,16 +41,15 @@
     .btn-group { display: flex; flex-direction: column; gap: 10px; }
     .btn-entry {
       padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; border: none;
-      display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .btn-entry:active { transform: scale(0.98); }
     .btn-join { background: #059669; color: white; }
     .btn-new { background: #2563eb; color: white; }
 
-    /* 頂部操作列 */
+    /* 頂部資訊列 */
     .room-bar {
       max-width: 1200px;
-      margin: 0 auto 14px;
+      margin: 0 auto 10px;
       background: var(--card);
       border-radius: 10px;
       padding: 10px 14px;
@@ -66,19 +65,41 @@
     .btn-action { background: var(--primary); border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
     .btn-switch { background: #334155; border: 1px solid #475569; color: #93c5fd; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 6px; }
 
-    /* 雙欄 */
+    /* 在線人員列 */
+    .online-bar {
+      max-width: 1200px;
+      margin: 0 auto 14px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+    .member-pill {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #38bdf8;
+      padding: 2px 8px;
+      border-radius: 14px;
+      font-size: 12px;
+    }
+
+    /* 主版面 */
     .layout {
       max-width: 1200px;
       margin: 0 auto;
       display: grid;
-      grid-template-columns: 1fr 380px;
+      grid-template-columns: 1fr 400px;
       gap: 16px;
     }
     @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
 
     .panel { background: var(--card); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
     
-    /* 盲盒拉霸 */
     .slot-box {
       background: #1e1b4b; border: 1.5px dashed #818cf8; border-radius: 8px;
       padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
@@ -100,7 +121,7 @@
       padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
     }
 
-    /* 右側清單 */
+    /* 右側購物清單與刪除按鈕 */
     .cart-box { position: sticky; top: 14px; }
     .user-group {
       background: #0f172a;
@@ -124,20 +145,42 @@
       justify-content: space-between;
       align-items: center;
       font-size: 13px;
-      padding: 4px 0;
+      padding: 5px 0;
+      border-bottom: 1px dashed #334155;
+    }
+    .cart-row:last-child { border-bottom: none; }
+    
+    .action-btns {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
     .btn-minus {
       background: #334155;
       color: #fca5a5;
       border: none;
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       border-radius: 4px;
       cursor: pointer;
       font-weight: bold;
-      margin-left: 6px;
     }
     .btn-minus:hover { background: #dc2626; color: white; }
+    
+    .btn-del {
+      background: #450a0a;
+      color: #f87171;
+      border: 1px solid #7f1d1d;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-del:hover { background: #b91c1c; color: white; }
 
     .total-price { font-size: 26px; font-weight: 900; color: #f87171; }
     
@@ -164,11 +207,11 @@
 </head>
 <body>
 
-  <!-- 入場設定視窗 -->
+  <!-- 入場彈窗 -->
   <div id="entryModal">
     <div class="modal-box">
       <h2 style="font-size:18px; color:#60a5fa; margin-bottom:4px;">🍻 漁很大 點餐系統</h2>
-      <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">先設定點餐身份，再選擇清單模式</p>
+      <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">先設定點餐姓名，再選擇清單模式</p>
       
       <div style="text-align:left; font-size:12px; color:#cbd5e1; margin-bottom:2px;">1. 您的姓名 / 暱稱：</div>
       <input type="text" id="inputName" class="modal-input" placeholder="例如：小明、阿達" maxlength="10">
@@ -185,8 +228,8 @@
 
       <div style="margin-top:12px; text-align:left;">
         <details style="font-size:11px; color:#64748b;">
-          <summary style="cursor:pointer;">自訂特定房號 / 桌號（選填）</summary>
-          <input type="text" id="customRoomInput" class="modal-input" style="margin-top:6px; padding:6px;" placeholder="預設為 shared_table">
+          <summary style="cursor:pointer;">自訂桌號（選填）</summary>
+          <input type="text" id="customRoomInput" class="modal-input" style="margin-top:6px; padding:6px;" placeholder="預設為 桌號_01">
         </details>
       </div>
     </div>
@@ -195,17 +238,23 @@
   <div id="toast">🔔 通知</div>
 
   <div class="header">
-    <h1>🍻 漁很大 多人連線點餐</h1>
+    <h1>🍻 漁很大 多人共用點餐系統</h1>
   </div>
 
   <div class="room-bar">
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
       <span class="badge" id="netStatus">連線中</span>
-      <span>清單：<strong id="roomDisplay" style="color:#f59e0b;">...</strong></span>
-      <span>｜ 點餐人：<strong id="userDisplay" style="color:#60a5fa;">...</strong></span>
-      <button class="btn-switch" onclick="reopenModal()">切換身份/清單</button>
+      <span>桌號：<strong id="roomDisplay" style="color:#f59e0b;">...</strong></span>
+      <span>｜ 我是：<strong id="userDisplay" style="color:#60a5fa;">...</strong></span>
+      <button class="btn-switch" onclick="reopenModal()">切換身份/桌號</button>
     </div>
-    <button class="btn-action" onclick="copyShareLink()">📋 複製這桌連結</button>
+    <button class="btn-action" onclick="copyShareLink()">📋 複製這桌連結發群組</button>
+  </div>
+
+  <!-- 即時在線人員列 -->
+  <div class="online-bar">
+    <span style="color:#94a3b8;">🟢 在線人員 (<span id="onlineCount">0</span>)：</span>
+    <div id="onlineMembers" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
   </div>
 
   <div class="layout">
@@ -228,9 +277,12 @@
       <div id="menuList"></div>
     </div>
 
-    <!-- 右側分組清單 -->
+    <!-- 右側分組清單（可隨意刪除） -->
     <div class="panel cart-box">
-      <h2 style="font-size:16px; margin-bottom:10px;">目前桌單明細（依姓名歸類）</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="font-size:16px;">全桌點餐明細</h2>
+        <span style="font-size:11px; color:#94a3b8;">(所有人皆可協助修改/刪除)</span>
+      </div>
       
       <div id="userCartList" style="max-height:380px; overflow-y:auto;">
         <div style="text-align:center; color:#64748b; padding:30px 0; font-size:13px;">這桌還沒有人點餐～</div>
@@ -266,8 +318,9 @@
     let currentRoom = "";
     let client = null;
     let orders = {};
+    let onlineUsers = new Set();
+    let heartbeatTimer = null;
 
-    // 檢查網址有無指定桌號
     const urlParams = new URLSearchParams(window.location.search);
     const paramRoom = urlParams.get('room');
 
@@ -284,14 +337,11 @@
       const custom = document.getElementById('customRoomInput').value.trim();
 
       if (mode === 'JOIN') {
-        // 加入共用清單：優先使用網址指定的房號，沒有就用自訂或預設桌
         currentRoom = paramRoom || custom || "桌號_01";
       } else {
-        // 重開全新清單：隨機產生新房間
         currentRoom = "新桌_" + Math.floor(Math.random() * 899 + 100);
       }
 
-      // 更新乾淨的網址參數
       window.history.replaceState({}, '', `?room=${encodeURIComponent(currentRoom)}`);
 
       document.getElementById('userDisplay').innerText = currentUser;
@@ -302,6 +352,7 @@
     }
 
     function reopenModal() {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       if (client) client.end();
       document.getElementById('entryModal').style.display = 'flex';
     }
@@ -313,22 +364,47 @@
       client.on('connect', () => {
         document.getElementById("netStatus").innerText = "🟢 已連線";
         client.subscribe(topic);
+        
+        // 廣播自己上線
+        client.publish(topic, JSON.stringify({ type: 'PRESENCE', user: currentUser }));
         client.publish(topic, JSON.stringify({ type: 'REQ_SYNC' }));
+
+        // 每 15 秒廣播一次保持在線狀態
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          client.publish(topic, JSON.stringify({ type: 'PRESENCE', user: currentUser }));
+        }, 15000);
       });
 
       client.on('message', (t, message) => {
         try {
           const data = JSON.parse(message.toString());
+          
           if (data.type === 'SYNC') {
             orders = data.orders;
             renderCartUI();
+          } else if (data.type === 'PRESENCE') {
+            if (!onlineUsers.has(data.user)) {
+              onlineUsers.add(data.user);
+              renderOnlineBar();
+              // 回應對方我也在線
+              client.publish(topic, JSON.stringify({ type: 'PRESENCE_ACK', user: currentUser }));
+            }
+          } else if (data.type === 'PRESENCE_ACK') {
+            onlineUsers.add(data.user);
+            renderOnlineBar();
           } else if (data.type === 'ADD') {
             doAdd(data.user, data.item, data.price);
             renderCartUI();
             showToast(`🔔 ${data.user} 點了 ${data.item}`);
           } else if (data.type === 'MINUS') {
-            doMinus(data.user, data.item);
+            doMinus(data.targetUser, data.item);
             renderCartUI();
+            showToast(`🔻 ${data.byUser} 減了 ${data.targetUser} 的 ${data.item}`);
+          } else if (data.type === 'DELETE_ITEM') {
+            doDeleteItem(data.targetUser, data.item);
+            renderCartUI();
+            showToast(`🗑️ ${data.byUser} 刪除了 ${data.targetUser} 的 ${data.item}`);
           } else if (data.type === 'CLEAR') {
             orders = {};
             renderCartUI();
@@ -337,8 +413,24 @@
             if (Object.keys(orders).length > 0) {
               client.publish(topic, JSON.stringify({ type: 'SYNC', orders: orders }));
             }
+            client.publish(topic, JSON.stringify({ type: 'PRESENCE_ACK', user: currentUser }));
           }
         } catch(e) {}
+      });
+    }
+
+    function renderOnlineBar() {
+      onlineUsers.add(currentUser);
+      const container = document.getElementById("onlineMembers");
+      const countEl = document.getElementById("onlineCount");
+      container.innerHTML = "";
+      countEl.innerText = onlineUsers.size;
+
+      onlineUsers.forEach(u => {
+        const span = document.createElement("span");
+        span.className = "member-pill";
+        span.innerText = (u === currentUser) ? `${u} (我)` : u;
+        container.appendChild(span);
       });
     }
 
@@ -349,15 +441,21 @@
       client.publish(topic, JSON.stringify({ type: 'ADD', user: currentUser, item, price }));
     }
 
-    function minusDish(user, item) {
-      if (user !== currentUser) {
-        alert("只能取消你自己點的菜色喔！");
-        return;
-      }
-      doMinus(user, item);
+    // 扣除 1 份（任何人都可以幫忙扣）
+    function minusDish(targetUser, item) {
+      doMinus(targetUser, item);
       renderCartUI();
       const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
-      client.publish(topic, JSON.stringify({ type: 'MINUS', user: currentUser, item }));
+      client.publish(topic, JSON.stringify({ type: 'MINUS', targetUser, byUser: currentUser, item }));
+    }
+
+    // 整道直接刪除（任何人都可以幫忙刪）
+    function deleteEntireItem(targetUser, item) {
+      if (!confirm(`確定要將【${targetUser}】點的「${item}」整道刪除嗎？`)) return;
+      doDeleteItem(targetUser, item);
+      renderCartUI();
+      const topic = `yuhenda_desk_${encodeURIComponent(currentRoom)}`;
+      client.publish(topic, JSON.stringify({ type: 'DELETE_ITEM', targetUser, byUser: currentUser, item }));
     }
 
     function doAdd(user, item, price) {
@@ -370,6 +468,13 @@
       if (orders[user] && orders[user][item]) {
         orders[user][item].qty -= 1;
         if (orders[user][item].qty <= 0) delete orders[user][item];
+        if (Object.keys(orders[user]).length === 0) delete orders[user];
+      }
+    }
+
+    function doDeleteItem(user, item) {
+      if (orders[user] && orders[user][item]) {
+        delete orders[user][item];
         if (Object.keys(orders[user]).length === 0) delete orders[user];
       }
     }
@@ -398,13 +503,17 @@
           userSubtotal += sub;
           grandTotal += sub;
 
-          const isMe = (user === currentUser);
-          const minusBtn = isMe ? `<button class="btn-minus" onclick="minusDish('${user}', '${item}')">-1</button>` : '';
-
           itemsHtml += `
             <div class="cart-row">
-              <span>${item} × ${qty}</span>
-              <span style="font-weight:bold;">$${sub} ${minusBtn}</span>
+              <div>
+                <span>${item}</span>
+                <span style="color:#94a3b8; font-size:12px; margin-left:4px;">× ${qty}</span>
+              </div>
+              <div class="action-btns">
+                <span style="font-weight:bold; margin-right:4px;">$${sub}</span>
+                <button class="btn-minus" title="減少1份" onclick="minusDish('${user}', '${item}')">-1</button>
+                <button class="btn-del" title="整道刪除" onclick="deleteEntireItem('${user}', '${item}')">✕</button>
+              </div>
             </div>
           `;
         }
@@ -466,13 +575,13 @@
       const t = document.getElementById("toast");
       t.innerText = msg;
       t.style.display = "block";
-      setTimeout(() => { t.style.display = "none"; }, 2000);
+      setTimeout(() => { t.style.display = "none"; }, 2500);
     }
 
     function copyShareLink() {
       const cleanUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(currentRoom)}`;
       navigator.clipboard.writeText(cleanUrl).then(() => {
-        alert(`已複製【${currentRoom}】連結！\n傳給同事或朋友，他們點開直接選姓名就能加入這桌。`);
+        alert(`已複製【${currentRoom}】連結！\n傳給同事或朋友，點開就能看到彼此並共同點餐！`);
       });
     }
 
